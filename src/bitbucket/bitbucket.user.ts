@@ -6,8 +6,8 @@
 // @author       Lumi
 // @match        https://bitbucket.org/ascendcorp/*/pull-requests/new
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bitbucket.org
-// @downloadURL  https://github.com/ascendcorp/userscripts/dist/bitbucket.user.js
-// @updateURL    https://github.com/ascendcorp/userscripts/dist/bitbucket.user.js
+// @downloadURL  https://raw.githubusercontent.com/Ascendcorp/userscripts/main/dist/bitbucket.user.js
+// @updateURL    https://raw.githubusercontent.com/Ascendcorp/userscripts/main/dist/bitbucket.user.js
 // @grant        none
 // ==/UserScript==
 

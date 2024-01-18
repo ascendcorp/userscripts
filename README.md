@@ -4,7 +4,11 @@
 
 ## Get Started
 
-TBA
+Required [Tampermonkey](https://www.tampermonkey.net/) extension on your browser
+
+| Userscripts | Direct Install                                                                                  |
+| ----------- | ----------------------------------------------------------------------------------------------- |
+| Bitbucket   | [Install](https://raw.githubusercontent.com/Ascendcopr/userscripts/main/dist/bitbucket.user.js) |
 
 ## Contributing
 
