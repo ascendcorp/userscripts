@@ -1,0 +1,28 @@
+{
+  "name": "userscripts",
+  "version": "1.0.0",
+  "description": "Streamlined scripts to enhance your workflow, designed to work seamlessly with the Tampermonkey browser extension.",
+  "scripts": {
+    "build": "tsc -p ./tsconfig.json"
+  },
+  "keywords": [
+    "userscripts",
+    "tampermonkey"
+  ],
+  "author": "Ascendcorp",
+  "license": "MIT",
+  "devDependencies": {
+    "@tsconfig/node20": "20.1.2",
+    "@typescript-eslint/eslint-plugin": "6.19.0",
+    "@typescript-eslint/parser": "6.19.0",
+    "eslint": "8.56.0",
+    "eslint-config-prettier": "9.1.0",
+    "eslint-plugin-userscripts": "0.5.1",
+    "prettier": "3.2.4",
+    "typescript": "5.3.3"
+  },
+  "engines": {
+    "node": ">=20.10.0",
+    "pnpm": ">=8.14.0"
+  }
+}

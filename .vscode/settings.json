@@ -1,0 +1,26 @@
+{
+  "todohighlight.isEnable": true,
+  "todohighlight.isCaseSensitive": true,
+  "todohighlight.keywords": [
+    {
+      "text": "TODO:",
+      "color": "#ecf0f1",
+      "backgroundColor": "#f39c12"
+    },
+    {
+      "text": "NOTE:",
+      "color": "#ecf0f1",
+      "backgroundColor": "#3498db"
+    },
+    {
+      "text": "FIXME:",
+      "color": "#ecf0f1",
+      "backgroundColor": "#e74c3c"
+    },
+    {
+      "text": "HACK:",
+      "color": "#ecf0f1",
+      "backgroundColor": "#9b59b6"
+    }
+  ]
+}
