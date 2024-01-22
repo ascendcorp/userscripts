@@ -8,7 +8,7 @@ Required [Tampermonkey](https://www.tampermonkey.net/) extension on your browser
 
 | Userscripts | Direct Install                                                                                  | Document                                                                            |
 | ----------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Bitbucket   | [Install](https://raw.githubusercontent.com/Ascendcopr/userscripts/main/dist/bitbucket.user.js) | [Wiki](https://github.com/ascendcorp/userscripts/blob/main/src/bitbucket/README.md) |
+| Bitbucket   | [Install](https://raw.githubusercontent.com/ascendcorp/userscripts/main/dist/bitbucket.user.js) | [Wiki](https://github.com/ascendcorp/userscripts/blob/main/src/bitbucket/README.md) |
 
 ## Contributing
 
