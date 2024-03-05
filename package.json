@@ -13,6 +13,7 @@
   "license": "MIT",
   "devDependencies": {
     "@tsconfig/node20": "20.1.2",
+    "@types/tampermonkey": "5.0.2",
     "@typescript-eslint/eslint-plugin": "6.19.0",
     "@typescript-eslint/parser": "6.19.0",
     "eslint": "8.56.0",
