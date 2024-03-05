@@ -6,9 +6,10 @@
 
 Required [Tampermonkey](https://www.tampermonkey.net/) extension on your browser
 
-| Userscripts | Direct Install                                                                                  | Document                                                                            |
-| ----------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Bitbucket   | [Install](https://raw.githubusercontent.com/ascendcorp/userscripts/main/dist/bitbucket.user.js) | [Wiki](https://github.com/ascendcorp/userscripts/blob/main/src/bitbucket/README.md) |
+| Userscripts | Direct Install                                                                                            | Document                                                                            |
+| ----------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Bitbucket   | [Install](https://raw.githubusercontent.com/ascendcorp/userscripts/main/dist/bitbucket/bitbucket.user.js) | [Wiki](https://github.com/ascendcorp/userscripts/blob/main/src/bitbucket/README.md) |
+| Atlassian   | [Install](https://raw.githubusercontent.com/ascendcorp/userscripts/main/dist/atlassian/atlassian.user.js) | [Wiki](https://github.com/ascendcorp/userscripts/blob/main/src/atlassian/README.md) |
 
 ## Contributing
 
