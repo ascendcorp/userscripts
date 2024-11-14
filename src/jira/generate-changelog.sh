@@ -38,6 +38,7 @@ read api_token
 # Select target branch
 git fetch
 git checkout "$TARGET_BRANCH"
+git pull
 
 # Get the last tag
 last_tag=$(git describe --tags `git rev-list --tags --max-count=1`)
