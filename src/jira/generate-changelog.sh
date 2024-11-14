@@ -25,6 +25,11 @@ if [ ! -f "$CHANGELOG_FILE" ]; then
     echo -e "# CHANGELOG\n\n" > "$CHANGELOG_FILE"
 fi
 
+# Select target branch
+git fetch
+git checkout "$TARGET_BRANCH"
+git pull
+
 # Prompt the user inputs
 echo "Enter the new tag version: "
 read tag_version
@@ -34,11 +39,6 @@ read username
 
 echo "Enter your Jira API token (https://id.atlassian.com/manage-profile/security/api-tokens): "
 read api_token
-
-# Select target branch
-git fetch
-git checkout "$TARGET_BRANCH"
-git pull
 
 # Get the last tag
 last_tag=$(git describe --tags `git rev-list --tags --max-count=1`)
