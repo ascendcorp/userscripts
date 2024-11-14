@@ -41,14 +41,9 @@ git pull
 wait_for_success
 
 # Prompt the user inputs
-echo "Enter the new tag version: "
-read tag_version
-
-echo "Enter your Jira username (user@example.com): "
-read username
-
-echo "Enter your Jira API token (https://id.atlassian.com/manage-profile/security/api-tokens): "
-read api_token
+read -p "Enter the new tag version: " tag_version
+read -p "Enter your Jira username (user@example.com): " username
+read -p "Enter your Jira API token (https://id.atlassian.com/manage-profile/security/api-tokens): " api_token
 
 # Get the last tag
 last_tag=$(git describe --tags `git rev-list --tags --max-count=1`)
