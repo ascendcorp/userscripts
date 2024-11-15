@@ -1,12 +1,5 @@
 #!/bin/sh
 
-wait_for_success() {
-    if [ $? -ne 0 ]; then
-        echo "An error occurred. Exiting the script."
-        exit 1
-    fi
-}
-
 # Check if gsed is installed
 if ! command -v gsed &> /dev/null; then
     echo "gsed is not installed. Please install it before running this script."
@@ -29,16 +22,13 @@ TARGET_BRANCH="master"
 if [ ! -f "$CHANGELOG_FILE" ]; then
     echo "$CHANGELOG_FILE does not exist. Creating the file..."
     touch "$CHANGELOG_FILE"
-    echo -e "# CHANGELOG\n\n" > "$CHANGELOG_FILE"
+    echo "# CHANGELOG\n\n" > "$CHANGELOG_FILE"
 fi
 
 # Select target branch
 git fetch
-wait_for_success
 git checkout "$TARGET_BRANCH"
-wait_for_success
 git pull
-wait_for_success
 
 # Prompt the user inputs
 read -p "Enter the new tag version: " tag_version
