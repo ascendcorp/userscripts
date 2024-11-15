@@ -1,4 +1,4 @@
-#!/bin/sh -i
+#!/bin/sh
 
 wait_for_success() {
     if [ $? -ne 0 ]; then
