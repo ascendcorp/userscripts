@@ -29,7 +29,7 @@ sudo mv $SCRIPT_NAME $INSTALL_DIR/$ALIAS_NAME
 
 # Add alias to shell configuration
 echo "Adding alias to $SHELL_RC..."
-echo "alias $ALIAS_NAME='$INSTALL_DIR/$ALIAS_NAME'" >> $SHELL_RC
+echo "alias $ALIAS_NAME='$INSTALL_DIR/$ALIAS_NAME'" >>$SHELL_RC
 
 # Reload shell configuration only if in the correct shell
 if [ "$SHELL" == "/bin/$CURRENT_SHELL" ]; then

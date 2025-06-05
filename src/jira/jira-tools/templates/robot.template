@@ -1,0 +1,32 @@
+{
+  "cards": [
+    {
+      "Name": "create test case for {name}",
+      "Type": "robot",
+      "Service": "{service}-robot",
+      "Description": {
+        "DOD": [
+          "h2. Test Case",
+          "",
+          "# Create test case",
+          "# Prepare data for test",
+          "# Insert test case to TRG"
+        ]
+      }
+    },
+    {
+      "Name": "create test script for {name}",
+      "Type": "robot",
+      "Service": "{service}-robot",
+      "Description": {
+        "DOD": [
+          "h2. Test Script",
+          "",
+          "# Create test script robot",
+          "# Execute the local robot test on env QA and Dev successfully and push code to develop",
+          "# Run on QA-pipeline"
+        ]
+      }
+    }
+  ]
+} 

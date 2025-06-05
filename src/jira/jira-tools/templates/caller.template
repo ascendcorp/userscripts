@@ -1,0 +1,18 @@
+{
+  "cards": [
+    {
+      "Name": "create api caller for {name}",
+      "Type": "caller",
+      "Service": "mf-web/bof-web",
+      "Description": {
+        "DOD": [
+          "h2. API Caller",
+          "",
+          "# Implement API caller in the web application",
+          "# Add error handling",
+          "# Add unit tests"
+        ]
+      }
+    }
+  ]
+} 

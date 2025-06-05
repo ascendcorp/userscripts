@@ -1,0 +1,48 @@
+{
+  "cards": [
+    {
+      "Name": "perf {name}",
+      "Type": "perf",
+      "Service": "{service}",
+      "Description": {
+        "DOD": [
+          "h2. Performance Test",
+          "",
+          "เส้นเดิม",
+          "",
+          "API เดิม",
+          "# API Name (เดิม) - {service}",
+          "# อยู่ที่ xx TPS",
+          "",
+          "Response Time",
+          "# max xx ms",
+          "# min xx ms",
+          "# mean xxx ms",
+          "",
+          "Expect",
+          "# ลองที่ x เท่าของ TPS เดิม (xTPS)",
+          "# Response time <= ของเดิม",
+          "## ถ้าช้าลงแต่ไม่มีนัยสำคัญ ก็ไม่เป็นไร (พินาอีกที)",
+          "## เทียบกับ client tps, lat อีกที เพื่อมั่นใจว่าไม่ได้ช้าลงที่เรา",
+          "# error rate 0%",
+          "# fixed ไว้เลยที่ x TPS",
+          "# ดู resource ต่างๆ ของตัวเอง, service ไปตาม ต้อง stable กราฟนิ่งๆ ไม่รถไฟเหาะ",
+          "",
+          "เส้นใหม่",
+          "# Perf test ดู max capacity ที่ได้",
+          "",
+          "Expect",
+          "# Error rate 0%",
+          "# ดู resource ต่างๆ ของตัวเอง, service ไปตาม ต้อง stable กราฟนิ่งๆ ไม่รถไฟเหาะ",
+          "",
+          "Links",
+          "[Perf Test Report Template|https://docs.google.com/spreadsheets/d/1rtMVzMDAQUtdPCR9dXrO5fp3sHD2FqiuryasNr8f8zA/edit?gid=0#gid=0]",
+          "[Performance Test Results|https://drive.google.com/drive/folders/1DB5VQm4hXU2wN_uRVyaHek7BB45CEZq7]",
+          "",
+          "หลัง Perf แล้ว ให้ sync กับ QA ว่าผลโอเครไหม ก่อน capture ผลออก report"
+        ]
+      }
+    }
+  ]
+} 
+

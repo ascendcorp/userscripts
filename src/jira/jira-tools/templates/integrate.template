@@ -1,0 +1,19 @@
+{
+  "cards": [
+    {
+      "Name": "integrate api {name}",
+      "Type": "integrate",
+      "Service": "mf-web/bof-web",
+      "Description": {
+        "DOD": [
+          "h2. API Integration DOD",
+          "",
+          "# Integrate the API into the web application",
+          "# Add error handling and loading states",
+          "# Add integration tests",
+          "# Update documentation"
+        ]
+      }
+    }
+  ]
+} 

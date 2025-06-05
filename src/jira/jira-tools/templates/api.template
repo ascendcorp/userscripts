@@ -1,0 +1,53 @@
+{
+  "Name": "",
+  "Type": "api",
+  "Service": "",
+  "ApiSpec": {
+    "Method": "GET",
+    "Path": "/api/v1/path",
+    "Headers": [
+      {
+        "key": "Content-Type",
+        "value": "application/json"
+      },
+      {
+        "key": "Authorization",
+        "value": "Bearer"
+      }
+    ]
+  },
+  "Request": {
+    "Fields": [
+      {
+        "name": "account_id",
+        "type": "int",
+        "required": true,
+        "validation": "positive number only"
+      },
+       {
+        "name": "id_card_no",
+        "type": "string",
+        "required": true,
+        "validation": "number only, fixed 13 digits"
+      }
+    ],
+    "Example": {
+    }
+  },
+  "Response": {
+    "Fields": [
+      {
+        "name": "account_id",
+        "type": "int",
+        "description": "positive number only"
+      },
+       {
+        "name": "address",
+        "type": "string",
+        "description": "Be empty when this field has no data"
+      }
+    ],
+    "Example": {
+    }
+  }
+}

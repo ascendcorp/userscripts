@@ -1,0 +1,12 @@
+{
+  "Name": "{name}",
+  "Service": "{service}",
+  "DOD": [
+    "# Upgrade some outdated dependencies",
+    "## Golang by `go get -u && go mod tidy`",
+    "## Node by `pnpm update --interactive --latest`",
+    "# Pass `pnpm ok` and `pnpm pw`",
+    "# List affect parts for testing"
+  ],
+  "Note": "Please update the DOD based on the actual tech stack of the service."
+} 

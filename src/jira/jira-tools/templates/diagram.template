@@ -1,0 +1,18 @@
+{
+  "cards": [
+    {
+      "Name": "Diagram {name}",
+      "Type": "diagram",
+      "Service": "{service}",
+      "Description": {
+        "DOD": [
+          "h2. Sequence Diagram",
+          "",
+          "# Create sequence diagram for API flow",
+          "# Add diagram to API documentation"
+        ]
+      },
+      "Prefix": "[http-client]"
+    }
+  ]
+} 
