@@ -332,6 +332,8 @@ process_chain_template() {
     local temp_integrate="$6"
     local temp_file
     temp_file=$(mktemp)
+    local test_case_key=""
+    local test_script_key=""
 
     echo "Processing chain template: $chain for API ticket: $api_ticket"
 
@@ -358,7 +360,17 @@ process_chain_template() {
 
                 if [ -n "$ticket_key" ]; then
                     echo "Created $card_type ticket: $ticket_key"
-                    echo "${card_type}:${ticket_key}" >>"$temp_file"
+
+                    # Check if this is a test case or test script
+                    if echo "$card_name" | grep -q "test case"; then
+                        echo "test case:${ticket_key}" >>"$temp_file"
+                        test_case_key="$ticket_key"
+                    elif echo "$card_name" | grep -q "test script"; then
+                        echo "test script:${ticket_key}" >>"$temp_file"
+                        test_script_key="$ticket_key"
+                    else
+                        echo "${card_type}:${ticket_key}" >>"$temp_file"
+                    fi
 
                     # Store caller and integrate keys in their respective temp files
                     case "$card_type" in
@@ -378,19 +390,41 @@ process_chain_template() {
         if [ -s "$temp_file" ]; then
             echo "Processing ticket links..."
 
-            # Process non-integrate links
+            # First get test case and test script keys if they exist
             while read -r line; do
                 [ -z "$line" ] && continue
                 type=${line%%:*}
                 key=${line#*:}
 
                 case "$type" in
-                "caller" | "diagram" | "perf" | "robot")
+                "test case")
+                    test_case_key="$key"
+                    ;;
+                "test script")
+                    test_script_key="$key"
+                    ;;
+                esac
+            done <"$temp_file"
+
+            # Process API links and link test case/script if they exist
+            while read -r line; do
+                [ -z "$line" ] && continue
+                type=${line%%:*}
+                key=${line#*:}
+
+                case "$type" in
+                "caller" | "diagram" | "perf" | "test case" | "test script")
                     echo "Linking API to $type: $api_ticket -> $key"
                     link_issues "$api_ticket" "$key"
                     ;;
                 esac
             done <"$temp_file"
+
+            # Link test case and test script if both exist
+            if [ -n "$test_case_key" ] && [ -n "$test_script_key" ]; then
+                echo "Linking test case to test script: $test_case_key -> $test_script_key"
+                link_issues "$test_case_key" "$test_script_key"
+            fi
         fi
     else
         echo "Warning: Chain template $chain not found"
