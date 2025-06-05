@@ -4,12 +4,65 @@ BASE_URL="https://truemoney.atlassian.net"
 SCRIPT_DIR=$(dirname "$0")
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
 
+link_issues() {
+    local inward_issue="$1"
+    local outward_issue="$2"
+
+    echo "Attempting to link issues: $inward_issue -> $outward_issue"
+
+    # Check if we have the required environment variables
+    if [ -z "$JIRA_USERNAME" ] || [ -z "$JIRA_TOKEN" ]; then
+        echo "Error: JIRA_USERNAME and JIRA_TOKEN must be set"
+        return 1
+    fi
+
+    # Create the auth header
+    auth_header=$(printf "%s:%s" "$JIRA_USERNAME" "$JIRA_TOKEN" | base64)
+
+    json_payload=$(
+        cat <<EOF
+{
+    "outwardIssue": {
+        "key": "$outward_issue"
+    },
+    "inwardIssue": {
+        "key": "$inward_issue"
+    },
+    "type": {
+        "id": "10003",
+        "name": "Relates"
+    }
+}
+EOF
+    )
+
+    response=$(curl -s -X POST -w "\nHTTP_STATUS:%{http_code}" \
+        -H "Content-Type: application/json" \
+        -H "Accept: application/json" \
+        -H "Authorization: Basic $auth_header" \
+        -d "$json_payload" \
+        "$BASE_URL/rest/api/3/issueLink")
+
+    http_status=$(echo "$response" | grep "HTTP_STATUS:" | cut -d":" -f2)
+    api_response=$(echo "$response" | grep -v "HTTP_STATUS:")
+
+    if [ "$http_status" = "201" ] || [ "$http_status" = "200" ]; then
+        echo "✓ Successfully linked $inward_issue to $outward_issue"
+        return 0
+    else
+        echo "✗ Error linking issues. Status: $http_status"
+        echo "Error details: $api_response"
+        return 1
+    fi
+}
+
 create_jira_ticket() {
     original_name="$1"
     type="$2"
     service="$3"
     description="$4"
     prefix="${5:-}"
+    parent_ticket="${6:-}"
 
     if [ "$type" = "api" ]; then
         name="create api for ${original_name}"
@@ -73,9 +126,11 @@ EOF
     if echo "$response" | jq -e '.key' >/dev/null; then
         ticket_key=$(echo "$response" | jq -r '.key')
         echo "Created ticket $ticket_key: $summary under epic $EPIC_KEY"
+        printf "%s" "$ticket_key"
     else
         echo "Error creating ticket: $summary"
         echo "Response: $response"
+        return 1
     fi
 }
 
@@ -272,36 +327,115 @@ process_chain_template() {
     local name="$1"
     local service="$2"
     local chain="$3"
+    local api_ticket="$4"
+    local temp_caller="$5"
+    local temp_integrate="$6"
+    local temp_file
+    temp_file=$(mktemp)
+
+    echo "Processing chain template: $chain for API ticket: $api_ticket"
 
     if [ -f "$TEMPLATE_DIR/${chain}.template" ]; then
         # Strip "create api for" prefix if it exists
         local clean_name="${name#create api for }"
         template_content=$(cat "$TEMPLATE_DIR/${chain}.template")
-        echo "$template_content" | jq -c --arg name "$clean_name" --arg service "$service" '
-            .cards[] | 
-            .Name = (.Name | gsub("\\{name\\}"; $name)) |
-            .Service = (.Service | gsub("\\{service\\}"; $service))
-        ' | while read -r card; do
-            card_name=$(echo "$card" | jq -r '.Name')
-            card_type=$(echo "$card" | jq -r '.Type')
-            card_service=$(echo "$card" | jq -r '.Service')
-            card_desc=$(echo "$card" | jq -r '.Description | if type == "object" then . else {"DOD": [.]} end')
-            card_prefix=$(echo "$card" | jq -r '.Prefix // empty')
-            create_jira_ticket "$card_name" "$card_type" "$card_service" "$card_desc" "$card_prefix"
-        done
+
+        # First create all tickets and store their keys
+        echo "$template_content" |
+            jq -c --arg name "$clean_name" --arg service "$service" \
+                '.cards[] | .Name = (.Name | gsub("\\{name\\}"; $name)) | .Service = (.Service | gsub("\\{service\\}"; $service))' |
+            while read -r card; do
+                [ -z "$card" ] && continue
+
+                card_name=$(echo "$card" | jq -r '.Name')
+                card_type=$(echo "$card" | jq -r '.Type')
+                card_service=$(echo "$card" | jq -r '.Service')
+                card_desc=$(echo "$card" | jq -r '.Description | if type == "object" then . else {"DOD": [.]} end')
+                card_prefix=$(echo "$card" | jq -r '.Prefix // empty')
+
+                echo "Creating $card_type ticket for $card_name..."
+                ticket_key=$(create_jira_ticket "$card_name" "$card_type" "$card_service" "$card_desc" "$card_prefix" "$api_ticket" | tail -n1)
+
+                if [ -n "$ticket_key" ]; then
+                    echo "Created $card_type ticket: $ticket_key"
+                    echo "${card_type}:${ticket_key}" >>"$temp_file"
+
+                    # Store caller and integrate keys in their respective temp files
+                    case "$card_type" in
+                    "caller")
+                        echo "$ticket_key" >"$temp_caller"
+                        ;;
+                    "integrate")
+                        echo "$ticket_key" >>"$temp_integrate"
+                        ;;
+                    esac
+                fi
+            done
+
+        echo "Created tickets:"
+        cat "$temp_file"
+
+        if [ -s "$temp_file" ]; then
+            echo "Processing ticket links..."
+
+            # Process non-integrate links
+            while read -r line; do
+                [ -z "$line" ] && continue
+                type=${line%%:*}
+                key=${line#*:}
+
+                case "$type" in
+                "caller" | "diagram" | "perf" | "robot")
+                    echo "Linking API to $type: $api_ticket -> $key"
+                    link_issues "$api_ticket" "$key"
+                    ;;
+                esac
+            done <"$temp_file"
+        fi
     else
         echo "Warning: Chain template $chain not found"
     fi
+
+    rm -f "$temp_file"
 }
 
 jq -c '.cards[]' "$CONFIG_FILE" | while read -r card; do
     name=$(echo "$card" | jq -r '.name')
     type=$(echo "$card" | jq -r '.type')
     service=$(echo "$card" | jq -r '.service')
-    create_jira_ticket "$name" "$type" "$service"
-    echo "$card" | jq -r '.chains[]?' | while read -r chain; do
-        if [ "$chain" != "null" ]; then
-            process_chain_template "$name" "$service" "$chain"
+    echo "Creating parent ticket: $name ($type) for service: $service"
+
+    # Store just the ticket key, not the full creation message
+    parent_key=$(create_jira_ticket "$name" "$type" "$service" | tail -n1)
+
+    if [ -n "$parent_key" ]; then
+        echo "Parent ticket created with key: $parent_key"
+
+        # Create temporary files to store ticket keys across chain executions
+        temp_caller=$(mktemp)
+        temp_integrate=$(mktemp)
+
+        # Process all chains first to create tickets
+        echo "$card" | jq -r '.chains[]?' | while read -r chain; do
+            if [ "$chain" != "null" ]; then
+                echo "Processing chain: $chain"
+                process_chain_template "$name" "$service" "$chain" "$parent_key" "$temp_caller" "$temp_integrate"
+            fi
+        done
+
+        # Now handle the linking if we have both caller and integrate tickets
+        if [ -s "$temp_caller" ] && [ -s "$temp_integrate" ]; then
+            caller_key=$(cat "$temp_caller")
+            while read -r integrate_key; do
+                [ -z "$integrate_key" ] && continue
+                echo "Linking caller to integrate: $caller_key -> $integrate_key"
+                link_issues "$caller_key" "$integrate_key"
+            done <"$temp_integrate"
         fi
-    done
+
+        # Cleanup
+        rm -f "$temp_caller" "$temp_integrate"
+    else
+        echo "Failed to create parent ticket"
+    fi
 done
