@@ -1,12 +1,12 @@
 #!/bin/sh
 
 # Variables
-SCRIPT_URL="https://raw.githubusercontent.com/ascendcorp/userscripts/refs/heads/main/src/jira/jira-tools/jira-tools.sh"
+SCRIPT_URL="https://raw.githubusercontent.com/ascendcorp/userscripts/refs/heads/main/src/jira/jira-tools/jira-cards.sh"
 TEMPLATES_BASE_URL="https://raw.githubusercontent.com/ascendcorp/userscripts/refs/heads/main/src/jira/jira-tools/templates"
-SCRIPT_NAME="jira-tools.sh"
+SCRIPT_NAME="jira-cards.sh"
 INSTALL_DIR="/usr/local/bin"
 TEMPLATES_DIR="/usr/local/share/jira-tools/templates"
-ALIAS_NAME="jira"
+ALIAS_NAME="jira-cards"
 
 # List of template files to download
 TEMPLATE_FILES="
