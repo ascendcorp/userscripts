@@ -3,20 +3,17 @@
 BASE_URL="https://truemoney.atlassian.net"
 SCRIPT_DIR=$(dirname "$0")
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
+SUMMARY_FILE=$(mktemp)
 
 link_issues() {
     local inward_issue="$1"
     local outward_issue="$2"
 
-    echo "Attempting to link issues: $inward_issue -> $outward_issue"
-
-    # Check if we have the required environment variables
     if [ -z "$JIRA_USERNAME" ] || [ -z "$JIRA_TOKEN" ]; then
         echo "Error: JIRA_USERNAME and JIRA_TOKEN must be set"
         return 1
     fi
 
-    # Create the auth header
     auth_header=$(printf "%s:%s" "$JIRA_USERNAME" "$JIRA_TOKEN" | base64)
 
     json_payload=$(
@@ -57,12 +54,12 @@ EOF
 }
 
 create_jira_ticket() {
-    original_name="$1"
-    type="$2"
-    service="$3"
-    description="$4"
-    prefix="${5:-}"
-    parent_ticket="${6:-}"
+    local original_name="$1"
+    local type="$2"
+    local service="$3"
+    local description="$4"
+    local prefix="${5:-}"
+    local parent_ticket="${6:-}"
 
     if [ "$type" = "api" ]; then
         name="create api for ${original_name}"
@@ -96,8 +93,31 @@ create_jira_ticket() {
         ;;
     esac
 
-    json_payload=$(
-        cat <<EOF
+    if [ "$type" = "caller" ]; then
+        json_payload=$(
+            cat <<EOF
+{
+    "fields": {
+        "project": {
+            "key": "$PROJECT_KEY"
+        },
+        "summary": "$summary",
+        "description": ${formatted_description},
+        "issuetype": {
+            "name": "Task"
+        },
+        "customfield_15626": {
+            "id": "$TMN_SCRUM_TEAM"
+        },
+        "customfield_10008": "$EPIC_KEY",
+        "customfield_10004": 1
+    }
+}
+EOF
+        )
+    else
+        json_payload=$(
+            cat <<EOF
 {
     "fields": {
         "project": {
@@ -115,7 +135,8 @@ create_jira_ticket() {
     }
 }
 EOF
-    )
+        )
+    fi
 
     response=$(curl -s -X POST \
         -H "Content-Type: application/json" \
@@ -137,7 +158,6 @@ EOF
 format_description() {
     local desc="$1"
     if echo "$desc" | jq -e . >/dev/null 2>&1; then
-        # If input is valid JSON
         local dod_items=$(echo "$desc" | jq -r '.DOD | join("\n")')
         local note=$(echo "$desc" | jq -r '.Note // empty')
         local output="${dod_items}"
@@ -146,12 +166,218 @@ format_description() {
             output="${output}\n\n*Note:* ${note}"
         fi
 
-        # Output without quotes or escaping
         printf '%s' "$output"
     else
-        # If input is plain text, treat it as is
         printf '%s' "$desc"
     fi
+}
+
+format_api_description() {
+    local desc="$1"
+    local method=$(echo "$desc" | jq -r '.ApiSpec.Method')
+    local path=$(echo "$desc" | jq -r '.ApiSpec.Path')
+    local headers=$(echo "$desc" | jq -r '.ApiSpec.Headers[] | (.key + ": " + .value)' | paste -sd "\\n" -)
+    local request_fields=$(echo "$desc" | jq -r '.Request.Fields[] | select(.name != "") | "|" + .name + "|" + (.type|tostring) + "|" + (.required|tostring) + "|" + (.validation|tostring) + "|"' | sed 's/"/\\"/g')
+    local request_example=$(echo "$desc" | jq -r '.Request.Example | tojson' | sed 's/"/\\"/g')
+    local response_fields=$(echo "$desc" | jq -r '.Response.Fields[] | select(.name != "") | "|" + .name + "|" + (.type|tostring) + "|" + "-" + "|" + (.description|tostring) + "|"' | sed 's/"/\\"/g')
+    local response_example=$(echo "$desc" | jq -r '.Response.Example | tojson' | sed 's/"/\\"/g')
+
+    cat <<EOF
+h2. API Specification
+
+||Field||Value||
+|Method|${method}|
+|Path|${path}|
+|Headers|${headers}|
+
+h3. Request Body
+
+||Field||Type||Required||Validation||
+${request_fields}
+
+*Example:*
+{code:json}
+${request_example}
+{code}
+
+h3. Response Body
+
+||Field||Type||Required||Description||
+${response_fields}
+
+*Example:*
+{code:json}
+${response_example}
+{code}
+EOF
+}
+
+process_chain_template() {
+    local name="$1"
+    local service="$2"
+    local type="$3"
+    local api_ticket="$4"
+    local temp_caller="$5"
+    local temp_integrate="$6"
+    local temp_file
+    temp_file=$(mktemp)
+    local test_case_key=""
+    local test_script_key=""
+
+    echo "Processing type template: $type for ticket: $api_ticket"
+
+    if [ -f "$TEMPLATE_DIR/${type}.template" ]; then
+        local clean_name="${name#create api for }"
+        template_content=$(cat "$TEMPLATE_DIR/${type}.template")
+
+        echo "$template_content" |
+            jq -c --arg name "$clean_name" --arg service "$service" \
+                '.cards[] | .Name = (.Name | gsub("\\{name\\}"; $name)) | .Service = (.Service | gsub("\\{service\\}"; $service))' |
+            while read -r card; do
+                [ -z "$card" ] && continue
+
+                card_name=$(echo "$card" | jq -r '.Name')
+                card_type=$(echo "$card" | jq -r '.Type')
+                card_service=$(echo "$card" | jq -r '.Service')
+                card_desc=$(echo "$card" | jq -r '.Description | if type == "object" then . else {"DOD": [.]} end')
+                card_prefix=$(echo "$card" | jq -r '.Prefix // empty')
+
+                ticket_key=$(create_jira_ticket "$card_name" "$card_type" "$card_service" "$card_desc" "$card_prefix" "$api_ticket" | tail -n1)
+
+                if [ -n "$ticket_key" ]; then
+                    echo "Created $card_type ticket: $ticket_key"
+
+                    if echo "$card_name" | grep -q "test case"; then
+                        echo "test case:${ticket_key}" >>"$temp_file"
+                        test_case_key="$ticket_key"
+                    elif echo "$card_name" | grep -q "test script"; then
+                        echo "test script:${ticket_key}" >>"$temp_file"
+                        test_script_key="$ticket_key"
+                    else
+                        echo "${card_type}:${ticket_key}" >>"$temp_file"
+                    fi
+
+                    case "$card_type" in
+                    "caller")
+                        echo "$ticket_key" >"$temp_caller"
+                        ;;
+                    "integrate")
+                        echo "$ticket_key" >>"$temp_integrate"
+                        ;;
+                    esac
+                fi
+            done
+
+        echo "Created tickets:"
+        cat "$temp_file"
+
+        if [ -s "$temp_file" ]; then
+            echo "Processing ticket links..."
+
+            while read -r line; do
+                [ -z "$line" ] && continue
+                type=${line%%:*}
+                key=${line#*:}
+
+                case "$type" in
+                "test case")
+                    test_case_key="$key"
+                    ;;
+                "test script")
+                    test_script_key="$key"
+                    ;;
+                esac
+            done <"$temp_file"
+
+            while read -r line; do
+                [ -z "$line" ] && continue
+                type=${line%%:*}
+                key=${line#*:}
+
+                case "$type" in
+                "caller" | "diagram" | "perf" | "test case" | "test script")
+                    link_issues "$api_ticket" "$key"
+                    ;;
+                esac
+            done <"$temp_file"
+
+            if [ -n "$test_case_key" ] && [ -n "$test_script_key" ]; then
+                link_issues "$test_case_key" "$test_script_key"
+            fi
+        fi
+    else
+        echo "Warning: Type template $type not found"
+    fi
+
+    rm -f "$temp_file"
+}
+
+process_type_template() {
+    local name="$1"
+    local service="$2"
+    local type="$3"
+    local api_ticket="$4"
+    local temp_caller="$5"
+    local temp_integrate="$6"
+    local temp_file
+    temp_file=$(mktemp)
+    local robot_test_keys=""
+
+    echo "Processing type template: $type for ticket: $api_ticket"
+
+    if [ -f "$TEMPLATE_DIR/${type}.template" ]; then
+        local clean_name="${name#create api for }"
+        template_content=$(cat "$TEMPLATE_DIR/${type}.template")
+
+        echo "$template_content" |
+            jq -c --arg name "$clean_name" --arg service "$service" \
+                '.cards[] | .Name = (.Name | gsub("\\{name\\}"; $name)) | .Service = (.Service | gsub("\\{service\\}"; $service))' |
+            while read -r card; do
+                [ -z "$card" ] && continue
+
+                card_name=$(echo "$card" | jq -r '.Name')
+                card_type=$(echo "$card" | jq -r '.Type')
+                card_service=$(echo "$card" | jq -r '.Service')
+                card_desc=$(echo "$card" | jq -r '.Description | if type == "object" then . else {"DOD": [.]} end')
+                card_prefix=$(echo "$card" | jq -r '.Prefix // empty')
+
+                ticket_key=$(create_jira_ticket "$card_name" "$card_type" "$card_service" "$card_desc" "$card_prefix" "$api_ticket" | tail -n1)
+
+                if [ -n "$ticket_key" ]; then
+                    printf "Card: [%s] %s\nLink: %s/browse/%s\n\n" "$card_service" "$card_name" "$BASE_URL" "$ticket_key" >>"$SUMMARY_FILE"
+
+                    if [ "$type" = "robot" ]; then
+                        if [ -z "$robot_test_keys" ]; then
+                            robot_test_keys="$ticket_key"
+                        else
+                            echo "$robot_test_keys" | tr ' ' '\n' | while read -r prev_key; do
+                                [ -n "$prev_key" ] && link_issues "$prev_key" "$ticket_key"
+                            done
+                            robot_test_keys="$robot_test_keys $ticket_key"
+                        fi
+                    fi
+
+                    case "$card_type" in
+                    "caller")
+                        echo "$ticket_key" >"$temp_caller"
+                        ;;
+                    "integrate")
+                        echo "$ticket_key" >>"$temp_integrate"
+                        ;;
+                    esac
+                fi
+            done
+
+        if [ -n "$api_ticket" ]; then
+            echo "$robot_test_keys" | tr ' ' '\n' | while read -r key; do
+                [ -n "$key" ] && link_issues "$api_ticket" "$key"
+            done
+        fi
+    else
+        echo "Warning: Type template $type not found"
+    fi
+
+    rm -f "$temp_file"
 }
 
 if [ "$1" = "deps" ]; then
@@ -223,13 +449,15 @@ if [ "$1" = "deps" ]; then
     exit 0
 fi
 
-if [ $# -eq 0 ]; then
-    echo "Usage: $0 <path-to-config-file>"
-    echo "Example: $0 ./cards.json"
+if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: jq is required but not installed. Please install it first."
     exit 1
 fi
 
-CONFIG_FILE="$1"
+if ! command -v fzf >/dev/null 2>&1; then
+    echo "Error: fzf is required but not installed. Please install it first."
+    exit 1
+fi
 
 if [ -z "$JIRA_USERNAME" ]; then
     printf "Enter your Jira username (email):\n"
@@ -257,20 +485,11 @@ if [ -z "$TMN_SCRUM_TEAM" ]; then
     esac
 fi
 
-if ! command -v jq >/dev/null 2>&1; then
-    echo "Error: jq is required but not installed. Please install it first."
-    exit 1
-fi
+printf "Enter Epic URL (e.g., https://truemoney.atlassian.net/browse/WE230007-730):\n"
+read -r EPIC_URL
 
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Error: Config file not found: $CONFIG_FILE"
-    exit 1
-fi
-
-EPIC_URL=$(jq -r '.epic' "$CONFIG_FILE")
-
-if [ -z "$EPIC_URL" ] || [ "$EPIC_URL" = "null" ]; then
-    echo "Error: Invalid epic URL in config file"
+if [ -z "$EPIC_URL" ]; then
+    echo "Error: Epic URL cannot be empty"
     exit 1
 fi
 
@@ -283,193 +502,76 @@ fi
 
 PROJECT_KEY=$(echo "$EPIC_KEY" | cut -d'-' -f1)
 
-format_api_description() {
-    local desc="$1"
-    local method=$(echo "$desc" | jq -r '.ApiSpec.Method')
-    local path=$(echo "$desc" | jq -r '.ApiSpec.Path')
-    local headers=$(echo "$desc" | jq -r '.ApiSpec.Headers[] | (.key + ": " + .value)' | paste -sd "\\n" -)
-    local request_fields=$(echo "$desc" | jq -r '.Request.Fields[] | select(.name != "") | "|" + .name + "|" + (.type|tostring) + "|" + (.required|tostring) + "|" + (.validation|tostring) + "|"' | sed 's/"/\\"/g')
-    local request_example=$(echo "$desc" | jq -r '.Request.Example | tojson' | sed 's/"/\\"/g')
-    local response_fields=$(echo "$desc" | jq -r '.Response.Fields[] | select(.name != "") | "|" + .name + "|" + (.type|tostring) + "|" + "-" + "|" + (.description|tostring) + "|"' | sed 's/"/\\"/g')
-    local response_example=$(echo "$desc" | jq -r '.Response.Example | tojson' | sed 's/"/\\"/g')
+printf "Enter card name:\n"
+read -r card_name
 
-    cat <<EOF
-h2. API Specification
+if [ -z "$card_name" ]; then
+    echo "Error: Card name cannot be empty"
+    exit 1
+fi
 
-||Field||Value||
-|Method|${method}|
-|Path|${path}|
-|Headers|${headers}|
+printf "Enter service name (e.g., mf-gw):\n"
+read -r service_name
 
-h3. Request Body
+if [ -z "$service_name" ]; then
+    echo "Error: Service name cannot be empty"
+    exit 1
+fi
 
-||Field||Type||Required||Validation||
-${request_fields}
+types="
+api
+caller
+diagram
+integrate
+perf
+robot
+"
 
-*Example:*
-{code:json}
-${request_example}
-{code}
+printf "Use TAB to select multiple types, ENTER to confirm\n"
+selected_types=$(printf "%s" "$types" | tr ' ' '\n' | grep -v '^$' |
+    fzf --multi --header="Select types to create (TAB to select, ENTER to confirm)" \
+        --preview 'echo "Selected type: {}"')
 
-h3. Response Body
+if [ -z "$selected_types" ]; then
+    echo "No types selected. Exiting."
+    exit 1
+fi
 
-||Field||Type||Required||Description||
-${response_fields}
+parent_key=""
 
-*Example:*
-{code:json}
-${response_example}
-{code}
-EOF
-}
+if echo "$selected_types" | grep -q "^api$"; then
+    echo "Creating API ticket: $card_name for service: $service_name"
+    parent_key=$(create_jira_ticket "$card_name" "api" "$service_name" | tail -n1)
 
-process_chain_template() {
-    local name="$1"
-    local service="$2"
-    local chain="$3"
-    local api_ticket="$4"
-    local temp_caller="$5"
-    local temp_integrate="$6"
-    local temp_file
-    temp_file=$(mktemp)
-    local test_case_key=""
-    local test_script_key=""
-
-    echo "Processing chain template: $chain for API ticket: $api_ticket"
-
-    if [ -f "$TEMPLATE_DIR/${chain}.template" ]; then
-        # Strip "create api for" prefix if it exists
-        local clean_name="${name#create api for }"
-        template_content=$(cat "$TEMPLATE_DIR/${chain}.template")
-
-        # First create all tickets and store their keys
-        echo "$template_content" |
-            jq -c --arg name "$clean_name" --arg service "$service" \
-                '.cards[] | .Name = (.Name | gsub("\\{name\\}"; $name)) | .Service = (.Service | gsub("\\{service\\}"; $service))' |
-            while read -r card; do
-                [ -z "$card" ] && continue
-
-                card_name=$(echo "$card" | jq -r '.Name')
-                card_type=$(echo "$card" | jq -r '.Type')
-                card_service=$(echo "$card" | jq -r '.Service')
-                card_desc=$(echo "$card" | jq -r '.Description | if type == "object" then . else {"DOD": [.]} end')
-                card_prefix=$(echo "$card" | jq -r '.Prefix // empty')
-
-                echo "Creating $card_type ticket for $card_name..."
-                ticket_key=$(create_jira_ticket "$card_name" "$card_type" "$card_service" "$card_desc" "$card_prefix" "$api_ticket" | tail -n1)
-
-                if [ -n "$ticket_key" ]; then
-                    echo "Created $card_type ticket: $ticket_key"
-
-                    # Check if this is a test case or test script
-                    if echo "$card_name" | grep -q "test case"; then
-                        echo "test case:${ticket_key}" >>"$temp_file"
-                        test_case_key="$ticket_key"
-                    elif echo "$card_name" | grep -q "test script"; then
-                        echo "test script:${ticket_key}" >>"$temp_file"
-                        test_script_key="$ticket_key"
-                    else
-                        echo "${card_type}:${ticket_key}" >>"$temp_file"
-                    fi
-
-                    # Store caller and integrate keys in their respective temp files
-                    case "$card_type" in
-                    "caller")
-                        echo "$ticket_key" >"$temp_caller"
-                        ;;
-                    "integrate")
-                        echo "$ticket_key" >>"$temp_integrate"
-                        ;;
-                    esac
-                fi
-            done
-
-        echo "Created tickets:"
-        cat "$temp_file"
-
-        if [ -s "$temp_file" ]; then
-            echo "Processing ticket links..."
-
-            # First get test case and test script keys if they exist
-            while read -r line; do
-                [ -z "$line" ] && continue
-                type=${line%%:*}
-                key=${line#*:}
-
-                case "$type" in
-                "test case")
-                    test_case_key="$key"
-                    ;;
-                "test script")
-                    test_script_key="$key"
-                    ;;
-                esac
-            done <"$temp_file"
-
-            # Process API links and link test case/script if they exist
-            while read -r line; do
-                [ -z "$line" ] && continue
-                type=${line%%:*}
-                key=${line#*:}
-
-                case "$type" in
-                "caller" | "diagram" | "perf" | "test case" | "test script")
-                    echo "Linking API to $type: $api_ticket -> $key"
-                    link_issues "$api_ticket" "$key"
-                    ;;
-                esac
-            done <"$temp_file"
-
-            # Link test case and test script if both exist
-            if [ -n "$test_case_key" ] && [ -n "$test_script_key" ]; then
-                echo "Linking test case to test script: $test_case_key -> $test_script_key"
-                link_issues "$test_case_key" "$test_script_key"
-            fi
-        fi
-    else
-        echo "Warning: Chain template $chain not found"
+    if [ -z "$parent_key" ]; then
+        echo "Failed to create API ticket"
+        exit 1
     fi
+    printf "Card: [%s] %s\nLink: %s/browse/%s\n\n" "$service_name" "$card_name" "$BASE_URL" "$parent_key" >>"$SUMMARY_FILE"
+fi
 
-    rm -f "$temp_file"
-}
+temp_caller=$(mktemp)
+temp_integrate=$(mktemp)
 
-jq -c '.cards[]' "$CONFIG_FILE" | while read -r card; do
-    name=$(echo "$card" | jq -r '.name')
-    type=$(echo "$card" | jq -r '.type')
-    service=$(echo "$card" | jq -r '.service')
-    echo "Creating parent ticket: $name ($type) for service: $service"
-
-    # Store just the ticket key, not the full creation message
-    parent_key=$(create_jira_ticket "$name" "$type" "$service" | tail -n1)
-
-    if [ -n "$parent_key" ]; then
-        echo "Parent ticket created with key: $parent_key"
-
-        # Create temporary files to store ticket keys across chain executions
-        temp_caller=$(mktemp)
-        temp_integrate=$(mktemp)
-
-        # Process all chains first to create tickets
-        echo "$card" | jq -r '.chains[]?' | while read -r chain; do
-            if [ "$chain" != "null" ]; then
-                echo "Processing chain: $chain"
-                process_chain_template "$name" "$service" "$chain" "$parent_key" "$temp_caller" "$temp_integrate"
-            fi
-        done
-
-        # Now handle the linking if we have both caller and integrate tickets
-        if [ -s "$temp_caller" ] && [ -s "$temp_integrate" ]; then
-            caller_key=$(cat "$temp_caller")
-            while read -r integrate_key; do
-                [ -z "$integrate_key" ] && continue
-                echo "Linking caller to integrate: $caller_key -> $integrate_key"
-                link_issues "$caller_key" "$integrate_key"
-            done <"$temp_integrate"
-        fi
-
-        # Cleanup
-        rm -f "$temp_caller" "$temp_integrate"
-    else
-        echo "Failed to create parent ticket"
+echo "$selected_types" | while read -r type; do
+    if [ -n "$type" ] && [ "$type" != "api" ]; then
+        process_type_template "$card_name" "$service_name" "$type" "$parent_key" "$temp_caller" "$temp_integrate"
     fi
 done
+
+if [ -s "$temp_integrate" ]; then
+    if [ -s "$temp_caller" ]; then
+        caller_key=$(cat "$temp_caller")
+        while read -r integrate_key; do
+            [ -z "$integrate_key" ] && continue
+            link_issues "$caller_key" "$integrate_key"
+        done <"$temp_integrate"
+    fi
+fi
+
+if [ -s "$SUMMARY_FILE" ]; then
+    echo "\n=== Summary of Created Cards ==="
+    cat "$SUMMARY_FILE"
+fi
+
+rm -f "$temp_caller" "$temp_integrate" "$SUMMARY_FILE"
