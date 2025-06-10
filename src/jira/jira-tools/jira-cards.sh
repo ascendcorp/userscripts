@@ -4,6 +4,24 @@ BASE_URL="https://truemoney.atlassian.net"
 SCRIPT_DIR=$(dirname "$0")
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
 SUMMARY_FILE=$(mktemp)
+CONFIG_FILE="$SCRIPT_DIR/.jira-tools.conf"
+
+# Function to load last Epic URL from config
+load_last_epic_url() {
+    if [ -f "$CONFIG_FILE" ]; then
+        last_epic_url=$(grep "^LAST_EPIC_URL=" "$CONFIG_FILE" | cut -d'=' -f2)
+        echo "$last_epic_url"
+    fi
+}
+
+# Function to save Epic URL to config
+save_epic_url() {
+    local epic_url="$1"
+    if [ -f "$CONFIG_FILE" ]; then
+        sed -i.bak '/^LAST_EPIC_URL=/d' "$CONFIG_FILE" && rm -f "$CONFIG_FILE.bak"
+    fi
+    echo "LAST_EPIC_URL=$epic_url" >>"$CONFIG_FILE"
+}
 
 link_issues() {
     local inward_issue="$1"
@@ -437,13 +455,26 @@ if [ "$1" = "deps" ]; then
         esac
     fi
 
-    printf "Enter Epic URL (e.g., https://truemoney.atlassian.net/browse/WE230007-523):\n"
-    read -r EPIC_URL
+    last_epic_url=$(load_last_epic_url)
+    if [ -n "$last_epic_url" ]; then
+        printf "Last used Epic URL: %s\nDo you want to use this Epic URL? (y/n): " "$last_epic_url"
+        read -r use_last_epic
+        if [ "$use_last_epic" = "y" ] || [ "$use_last_epic" = "Y" ]; then
+            EPIC_URL="$last_epic_url"
+        fi
+    fi
 
     if [ -z "$EPIC_URL" ]; then
-        echo "Error: Epic URL cannot be empty"
-        exit 1
+        printf "Enter Epic URL (e.g., https://truemoney.atlassian.net/browse/WE230007-523):\n"
+        read -r EPIC_URL
+
+        if [ -z "$EPIC_URL" ]; then
+            echo "Error: Epic URL cannot be empty"
+            exit 1
+        fi
     fi
+
+    save_epic_url "$EPIC_URL"
 
     EPIC_KEY=$(echo "$EPIC_URL" | grep -oE '[A-Z][A-Z0-9]+[A-Z0-9]+-[0-9]+')
 
@@ -521,13 +552,26 @@ if [ -z "$TMN_SCRUM_TEAM" ]; then
     esac
 fi
 
-printf "Enter Epic URL (e.g., https://truemoney.atlassian.net/browse/WE230007-730):\n"
-read -r EPIC_URL
+last_epic_url=$(load_last_epic_url)
+if [ -n "$last_epic_url" ]; then
+    printf "Last used Epic URL: %s\nDo you want to use this Epic URL? (y/n): " "$last_epic_url"
+    read -r use_last_epic
+    if [ "$use_last_epic" = "y" ] || [ "$use_last_epic" = "Y" ]; then
+        EPIC_URL="$last_epic_url"
+    fi
+fi
 
 if [ -z "$EPIC_URL" ]; then
-    echo "Error: Epic URL cannot be empty"
-    exit 1
+    printf "Enter Epic URL (e.g., https://truemoney.atlassian.net/browse/WE230007-730):\n"
+    read -r EPIC_URL
+
+    if [ -z "$EPIC_URL" ]; then
+        echo "Error: Epic URL cannot be empty"
+        exit 1
+    fi
 fi
+
+save_epic_url "$EPIC_URL"
 
 EPIC_KEY=$(echo "$EPIC_URL" | grep -oE '[A-Z][A-Z0-9]+[A-Z0-9]+-[0-9]+')
 
