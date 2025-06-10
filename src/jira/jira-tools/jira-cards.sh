@@ -415,7 +415,7 @@ if [ "$1" = "deps" ]; then
         exit 1
     fi
 
-    read -r -p "Enter sprint name/number: " sprint
+    read -r -p "Enter sprint name/number (eg. 3-2025): " sprint
     if [ -z "$sprint" ]; then
         echo "Sprint cannot be empty. Exiting."
         exit 1
@@ -437,7 +437,21 @@ if [ "$1" = "deps" ]; then
         esac
     fi
 
-    EPIC_KEY="WE230007-523"
+    printf "Enter Epic URL (e.g., https://truemoney.atlassian.net/browse/WE230007-523):\n"
+    read -r EPIC_URL
+
+    if [ -z "$EPIC_URL" ]; then
+        echo "Error: Epic URL cannot be empty"
+        exit 1
+    fi
+
+    EPIC_KEY=$(echo "$EPIC_URL" | grep -oE '[A-Z][A-Z0-9]+[A-Z0-9]+-[0-9]+')
+
+    if [ -z "$EPIC_KEY" ]; then
+        echo "Error: Could not extract epic key from URL"
+        exit 1
+    fi
+
     PROJECT_KEY=$(echo "$EPIC_KEY" | cut -d'-' -f1)
 
     echo "Creating tickets for selected services:"
@@ -451,12 +465,23 @@ if [ "$1" = "deps" ]; then
             description="{}"
         fi
 
-        create_jira_ticket \
+        ticket_key=$(create_jira_ticket \
             "bi-weekly upgrade dependency sprint $sprint" \
             "task" \
             "$svc" \
-            "$description"
+            "$description" | tail -n1)
+
+        if [ -n "$ticket_key" ]; then
+            printf "Card: [%s] bi-weekly upgrade dependency sprint %s\nLink: %s/browse/%s\n\n" "$svc" "$sprint" "$BASE_URL" "$ticket_key" >>"$SUMMARY_FILE"
+        fi
     done
+
+    if [ -s "$SUMMARY_FILE" ]; then
+        echo "\n=== Summary of Created Dependency Cards ==="
+        cat "$SUMMARY_FILE"
+    fi
+
+    rm -f "$SUMMARY_FILE"
     exit 0
 fi
 
