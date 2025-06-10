@@ -4,10 +4,14 @@ BASE_URL="https://truemoney.atlassian.net"
 SCRIPT_DIR=$(dirname "$0")
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
 SUMMARY_FILE=$(mktemp)
-CONFIG_FILE="$SCRIPT_DIR/.jira-tools.conf"
+CONFIG_DIR="$HOME/.config/jira-tools"
+CONFIG_FILE="$CONFIG_DIR/config"
 
 # Function to load last Epic URL from config
 load_last_epic_url() {
+    if [ ! -d "$CONFIG_DIR" ]; then
+        mkdir -p "$CONFIG_DIR"
+    fi
     if [ -f "$CONFIG_FILE" ]; then
         last_epic_url=$(grep "^LAST_EPIC_URL=" "$CONFIG_FILE" | cut -d'=' -f2)
         echo "$last_epic_url"
@@ -17,6 +21,9 @@ load_last_epic_url() {
 # Function to save Epic URL to config
 save_epic_url() {
     local epic_url="$1"
+    if [ ! -d "$CONFIG_DIR" ]; then
+        mkdir -p "$CONFIG_DIR"
+    fi
     if [ -f "$CONFIG_FILE" ]; then
         sed -i.bak '/^LAST_EPIC_URL=/d' "$CONFIG_FILE" && rm -f "$CONFIG_FILE.bak"
     fi
