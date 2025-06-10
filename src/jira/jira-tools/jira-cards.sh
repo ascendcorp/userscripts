@@ -329,9 +329,20 @@ process_type_template() {
         local clean_name="${name#create api for }"
         template_content=$(cat "$TEMPLATE_DIR/${type}.template")
 
+        local mapped_service
+        if [ "$type" = "caller" ] || [ "$type" = "integrate" ]; then
+            if echo "$service" | grep -q "bof"; then
+                mapped_service="bof-web"
+            else
+                mapped_service="mf-web"
+            fi
+        else
+            mapped_service="$service"
+        fi
+
         echo "$template_content" |
-            jq -c --arg name "$clean_name" --arg service "$service" \
-                '.cards[] | .Name = (.Name | gsub("\\{name\\}"; $name)) | .Service = (.Service | gsub("\\{service\\}"; $service))' |
+            jq -c --arg name "$clean_name" --arg service "$mapped_service" \
+                '.cards[] | .Name = (.Name | gsub("\\{name\\}"; $name)) | .Service = $service' |
             while read -r card; do
                 [ -z "$card" ] && continue
 

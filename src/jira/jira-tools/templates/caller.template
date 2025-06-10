@@ -3,7 +3,7 @@
     {
       "Name": "create api caller for {name}",
       "Type": "caller",
-      "Service": "mf-web/bof-web",
+      "Service": "{service}",
       "Description": {
         "DOD": [
           "h2. API Caller",

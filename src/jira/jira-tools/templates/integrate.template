@@ -3,7 +3,7 @@
     {
       "Name": "integrate api {name}",
       "Type": "integrate",
-      "Service": "mf-web/bof-web",
+      "Service": "{service}",
       "Description": {
         "DOD": [
           "h2. API Integration DOD",
